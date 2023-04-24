@@ -130,7 +130,6 @@ def run(
         print(f'[INFO] writing output shapefile')
         write_task = progress.add_task("Writing shapefile", total=1)
         gdf.to_file(output_file)
-        progress.update(write_task, advance=1)
 
         # If zip option is True, zip the output file and delete the original one
         if zip_output:
@@ -146,6 +145,7 @@ def run(
                 # Delete the original output file and its associated files
                 for ext in [".shp", ".dbf", ".prj", ".shx", ".cpg"]:
                     output_file.with_suffix(ext).unlink()
+        progress.update(write_task, advance=1)
         progress.update(process_task, advance=1)
         progress.remove_task(task)
         progress.remove_task(write_task)
