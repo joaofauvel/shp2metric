@@ -68,7 +68,7 @@ def run(
                 with zipfile.ZipFile(z, "r") as zf:
                     zf.extractall(tmp_dir)
         # Find all shapefiles in the temporary directory recursively
-        shapefiles = list(tmp_dir.rglob("*.shp"))
+        shapefiles = list(input_path.rglob("*.shp"))
     elif input_path.suffix == ".shp":
         # Use the input shapefile as a single-item list
         shapefiles = [input_path]
@@ -93,6 +93,7 @@ def run(
 
     # Loop through the shapefiles with a progress bar
     for file in shapefiles:
+        print(f'[INFO] processing "{file}"')
         # Read the input shapefile
         gdf, task = progress_read_shp(file, progress)
         progress.update(process_task, advance=1)
