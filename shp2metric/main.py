@@ -1,6 +1,6 @@
 import typer
 from pathlib import Path
-from rich.progress import Progress, TaskID
+from rich.progress import Progress, TaskID, MofNCompleteColumn
 import zipfile
 import geopandas as gpd
 import shutil
@@ -11,7 +11,7 @@ import pandas as pd
 app = typer.Typer()
 
 # Open the shapefile with fiona
-def progress_read_shp(file, progress: Progress) -> tuple[gpd.GeoDataFrame, TaskID]:
+def progress_read_shp(file, progress: Progress, chunk_size: int = 10000) -> tuple[gpd.GeoDataFrame, TaskID]:
     with fiona.open(file) as src:
         # Get the crs and schema of the shapefile
         crs = src.crs
@@ -19,17 +19,18 @@ def progress_read_shp(file, progress: Progress) -> tuple[gpd.GeoDataFrame, TaskI
 
         # Create an empty geodataframe to store the final result
         gdf = gpd.GeoDataFrame()
-        read_task = progress.add_task("Reading shapefile", total=len(src))
-        for chunk in islice(src, None, None, 1000):
+        feat_count = len(src)
+        read_task = progress.add_task("Reading shapefile", total=feat_count)
+        for i in range(0, feat_count, chunk_size):
             # Convert the chunk into a list of features
-            features = list(chunk)
+            chunk = list(src[i:i+chunk_size])
             # Create a geodataframe from the features
-            gdf_chunk = gpd.GeoDataFrame.from_features(features, crs=crs)
+            gdf_chunk = gpd.GeoDataFrame.from_features(chunk, crs=crs)
             # Concatenate the geodataframes
             gdf = pd.concat([gdf, gdf_chunk])
+            progress.update(read_task, advance=len(chunk))
             # Delete the chunk and the geodataframe variables
             del chunk, gdf_chunk
-            progress.update(read_task, advance=len(features))
 
         # Return a geodataframe from the features
         return gdf, read_task
@@ -45,7 +46,12 @@ def run(
     input_path = Path(input)
     output_dir = Path(output)
 
-    progress = Progress()
+    if not output_dir.exists():
+        output_dir.mkdir()
+    else:
+        print(f'[WARNING] output dir "{output_dir}" already exists')
+
+    progress = Progress(MofNCompleteColumn(), *Progress.get_default_columns())
 
     # Check if the input is a directory, a shapefile or a zip file
     if input_path.is_dir():
@@ -76,7 +82,7 @@ def run(
         # Read the input shapefile
         gdf, task = progress_read_shp(file, progress)
 
-        gdf["TargetRxVar"] = ((gdf["AppliedRate"] - gdf["TargetRate"]) / gdf["TargetRate"]) * 100
+        gdf["TargtRxVar"] = ((gdf["AppliedRate"] - gdf["TargetRate"]) / gdf["TargetRate"]) * 100
         gdf["Speed"] = (gdf["DISTANCE"] * 0.0003048) * 3600
         gdf["FieldProd"] = (((gdf["DISTANCE"] * 0.3048) * (gdf["SWATHWIDTH"] * 0.3048)) / 10000) * 3600
         gdf["TargetRate"] = gdf["TargetRate"] * 2.47105381
@@ -84,27 +90,29 @@ def run(
 
         # Save the output shapefile with the same name in the output directory
         output_file = output_dir / file.name
+        print(f'[INFO] writing output shapefile')
         gdf.to_file(output_file)
 
         # If zip option is True, zip the output file and delete the original one
         if zip:
             # Create a zip file name with the same stem as the output file
             zip_file = output_dir / (file.stem + ".zip")
-
             # Create a zip file object in write mode
             with zipfile.ZipFile(zip_file, "w") as zf:
+                print(f'[INFO] zipping shapefile')
                 # Write the output file and its associated files to the zip file
-                for ext in [".shp", ".dbf", ".prj", ".shx"]:
-                    zf.write(output_file.with_suffix(ext))
-
+                for ext in [".shp", ".dbf", ".prj", ".shx", ".cpg"]:
+                    zf.write(output_file.with_suffix(ext), arcname=output_file.name())
+                print(f'[INFO] removing temporary files')
                 # Delete the original output file and its associated files
-                for ext in [".shp", ".dbf", ".prj", ".shx"]:
+                for ext in [".shp", ".dbf", ".prj", ".shx", ".cpg"]:
                     output_file.with_suffix(ext).unlink()
         progress.remove_task(task)
         progress.update(process_task, advance=1)
+        del gdf
 
     if tmp_dir.exists():
-        shutil.rmtree(tmp_dir)
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
     # Stop displaying progress
     progress.stop()

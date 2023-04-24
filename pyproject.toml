@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "shp2metric"
-version = "0.9.5"
+version = "1.0.8"
 description = "Converts Operations Center shapefiles to metric"
 authors = ["João Fauvel <jmmfauvel@gmail.com>"]
 readme = "README.md"
