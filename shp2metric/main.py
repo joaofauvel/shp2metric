@@ -4,8 +4,27 @@ from rich.progress import track
 import zipfile
 import geopandas as gpd
 import shutil
+import fiona
 
 app = typer.Typer()
+
+# Open the shapefile with fiona
+def progress_read_shp(file):
+    with fiona.open(file) as src:
+        # Get the crs and schema of the shapefile
+        crs = src.crs
+        schema = src.schema
+
+        # Create an empty list to store the features
+        features = []
+
+        # Loop through the features with a progress bar
+        for feature in track(src, description="Reading shapefile..."):
+            # Append the feature to the list
+            features.append(feature)
+
+        # Return a geodataframe from the features
+        return gpd.GeoDataFrame.from_features(features, crs=crs)
 
 @app.command()
 def run(
@@ -41,7 +60,7 @@ def run(
     # Loop through the shapefiles with a progress bar
     for file in track(shapefiles, description="Processing shapefiles..."):
         # Read the input shapefile
-        gdf = gpd.read_file(file)
+        gdf = progress_read_shp(file)
 
         # Assign a new column that is the difference of column "Applied" and "Target"
         gdf["Difference"] = gdf["Applied"] - gdf["Target"]

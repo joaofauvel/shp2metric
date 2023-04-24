@@ -1,2 +1,2 @@
-# zipg
-CLI utility to zip groups of files with the same name inside a directory. 
+# shp2metric
+CLI utility to convert Operations Center shapefiles from imperial to metric and more

@@ -11,6 +11,7 @@ python = "^3.11"
 geopandas = "^0.12.2"
 typer = "^0.7.0"
 rich = "^13.3.4"
+fiona = "^1.9.3"
 
 [tool.poetry.scripts]
 shp2metric = "shp2metric.main:app"
