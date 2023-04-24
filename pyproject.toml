@@ -1,14 +1,19 @@
 [tool.poetry]
 name = "shp2metric"
-version = "0.1.0"
+version = "0.4.0"
 description = "Converts Operations Center shapefiles to metric"
 authors = ["João Fauvel <jmmfauvel@gmail.com>"]
 readme = "README.md"
+license = "GPL-3.0-or-later"
 
 [tool.poetry.dependencies]
 python = "^3.11"
 geopandas = "^0.12.2"
+typer = "^0.7.0"
+rich = "^13.3.4"
 
+[tool.poetry.scripts]
+shp2metric = "shp2metric.main:app"
 
 [build-system]
 requires = ["poetry-core"]
