@@ -1,47 +1,56 @@
 import typer
 from pathlib import Path
-from rich.progress import track
+from rich.progress import Progress, TaskID
 import zipfile
 import geopandas as gpd
 import shutil
 import fiona
+from itertools import islice
+import pandas as pd
 
 app = typer.Typer()
 
 # Open the shapefile with fiona
-def progress_read_shp(file):
+def progress_read_shp(file, progress: Progress) -> tuple[gpd.GeoDataFrame, TaskID]:
     with fiona.open(file) as src:
         # Get the crs and schema of the shapefile
         crs = src.crs
         schema = src.schema
 
-        # Create an empty list to store the features
-        features = []
-
-        # Loop through the features with a progress bar
-        for feature in track(src, description="Reading shapefile..."):
-            # Append the feature to the list
-            features.append(feature)
+        # Create an empty geodataframe to store the final result
+        gdf = gpd.GeoDataFrame()
+        read_task = progress.add_task("Reading shapefile", total=len(src))
+        for chunk in islice(src, None, None, 1000):
+            # Convert the chunk into a list of features
+            features = list(chunk)
+            # Create a geodataframe from the features
+            gdf_chunk = gpd.GeoDataFrame.from_features(features, crs=crs)
+            # Concatenate the geodataframes
+            gdf = pd.concat([gdf, gdf_chunk])
+            # Delete the chunk and the geodataframe variables
+            del chunk, gdf_chunk
+            progress.update(read_task, advance=len(features))
 
         # Return a geodataframe from the features
-        return gpd.GeoDataFrame.from_features(features, crs=crs)
+        return gdf, read_task
 
 @app.command()
 def run(
     input: str = typer.Argument(..., help="The input directory, shapefile or zip file"),
-    output: str = typer.Argument("output", help="The output directory"),
+    output: str = typer.Argument("output/", help="The output directory"),
     zip: bool = typer.Option(True, help="Whether to zip the output files or not"),
     match: str = typer.Option('**/*.shp', help="Match string to use if the input is a directory or a zip archive. Any file matching the criteria will be globbed"),
 ):
     # Create Path objects for the input and output directories
     input_path = Path(input)
     output_dir = Path(output)
-    
+
+    progress = Progress()
 
     # Check if the input is a directory, a shapefile or a zip file
     if input_path.is_dir():
         # Find all shapefiles in the input directory recursively
-        shapefiles = input_path.glob(match)
+        shapefiles = list(input_path.glob(match))
     elif input_path.suffix == ".shp":
         # Use the input shapefile as a single-item list
         shapefiles = [input_path]
@@ -52,21 +61,26 @@ def run(
         with zipfile.ZipFile(input_path, "r") as zf:
             zf.extractall(tmp_dir)
         # Find all shapefiles in the temporary directory recursively
-        shapefiles = tmp_dir.glob(match)
+        shapefiles = list(tmp_dir.glob(match))
     else:
         # Raise an error if the input is not valid
         raise typer.BadParameter("Input must be a directory, a shapefile or a zip file")
+    
+    progress.start()
+
+    # Add tasks for reading and processing shapefiles
+    process_task = progress.add_task("Processing shapefile", total=len(shapefiles))
 
     # Loop through the shapefiles with a progress bar
-    for file in track(shapefiles, description="Processing shapefiles..."):
+    for file in shapefiles:
         # Read the input shapefile
-        gdf = progress_read_shp(file)
+        gdf, task = progress_read_shp(file, progress)
 
-        # Assign a new column that is the difference of column "Applied" and "Target"
-        gdf["Difference"] = gdf["Applied"] - gdf["Target"]
-
-        # Apply 2*x to column "distance"
-        gdf["distance"] = gdf["distance"] * 2
+        gdf["TargetRxVar"] = ((gdf["AppliedRate"] - gdf["TargetRate"]) / gdf["TargetRate"]) * 100
+        gdf["Speed"] = (gdf["DISTANCE"] * 0.0003048) * 3600
+        gdf["FieldProd"] = (((gdf["DISTANCE"] * 0.3048) * (gdf["SWATHWIDTH"] * 0.3048)) / 10000) * 3600
+        gdf["TargetRate"] = gdf["TargetRate"] * 2.47105381
+        gdf["AppliedRate"] = gdf["AppliedRate"] * 2.47105381
 
         # Save the output shapefile with the same name in the output directory
         output_file = output_dir / file.name
@@ -86,9 +100,14 @@ def run(
                 # Delete the original output file and its associated files
                 for ext in [".shp", ".dbf", ".prj", ".shx"]:
                     output_file.with_suffix(ext).unlink()
+        progress.remove_task(task)
+        progress.update(process_task, advance=1)
 
     if tmp_dir.exists():
         shutil.rmtree(tmp_dir)
+
+    # Stop displaying progress
+    progress.stop()
 
     # Print a success message
     typer.echo(f"Processed {input_path} and saved to {output_dir}")
