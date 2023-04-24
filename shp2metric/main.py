@@ -57,7 +57,7 @@ def run(
     else:
         print(f'[WARNING] tmp dir "{tmp_dir}" already exists')
 
-    progress = Progress(MofNCompleteColumn(), *Progress.get_default_columns())
+    progress = Progress()
 
     # Check if the input is a directory, a shapefile or a zip file
     if input_path.is_dir():
@@ -89,12 +89,13 @@ def run(
     progress.start()
 
     # Add tasks for reading and processing shapefiles
-    process_task = progress.add_task("Processing shapefile", total=len(shapefiles))
+    process_task = progress.add_task("Processing shapefiles", total=len(shapefiles)*3)
 
     # Loop through the shapefiles with a progress bar
     for file in shapefiles:
         # Read the input shapefile
         gdf, task = progress_read_shp(file, progress)
+        progress.update(process_task, advance=1)
 
         try:
             gdf["TargtRxVar"] = ((gdf["AppliedRate"] - gdf["TargetRate"]) / gdf["TargetRate"]) * 100
@@ -121,10 +122,14 @@ def run(
         except KeyError:
             print(f'[WARNING] key error when attempting to convert Yield')
 
+        progress.update(process_task, advance=1)
+
         # Save the output shapefile with the same name in the output directory
         output_file = output_dir / file.name
         print(f'[INFO] writing output shapefile')
+        write_task = progress.add_task("Writing shapefile", total=1)
         gdf.to_file(output_file)
+        progress.update(write_task, advance=1)
 
         # If zip option is True, zip the output file and delete the original one
         if zip_output:
@@ -140,8 +145,8 @@ def run(
                 # Delete the original output file and its associated files
                 for ext in [".shp", ".dbf", ".prj", ".shx", ".cpg"]:
                     output_file.with_suffix(ext).unlink()
-        progress.remove_task(task)
         progress.update(process_task, advance=1)
+        progress.remove_task(task)
         del gdf
 
     # Stop displaying progress
