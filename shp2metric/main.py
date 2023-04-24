@@ -57,6 +57,7 @@ def run(
     if input_path.is_dir():
         # Find all shapefiles in the input directory recursively
         shapefiles = list(input_path.glob(match))
+        # TODO search directory for shapefile archived as zip
     elif input_path.suffix == ".shp":
         # Use the input shapefile as a single-item list
         shapefiles = [input_path]
@@ -102,7 +103,7 @@ def run(
                 print(f'[INFO] zipping shapefile')
                 # Write the output file and its associated files to the zip file
                 for ext in [".shp", ".dbf", ".prj", ".shx", ".cpg"]:
-                    zf.write(output_file.with_suffix(ext), arcname=output_file.name)
+                    zf.write(output_file.with_suffix(ext), arcname=output_file.with_suffix(ext).name)
                 print(f'[INFO] removing temporary files')
                 # Delete the original output file and its associated files
                 for ext in [".shp", ".dbf", ".prj", ".shx", ".cpg"]:
