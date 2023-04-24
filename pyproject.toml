@@ -7,7 +7,7 @@ readme = "README.md"
 license = "GPL-3.0-or-later"
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.8"
 geopandas = "^0.12.2"
 typer = "^0.7.0"
 rich = "^13.3.4"
