@@ -147,6 +147,7 @@ def run(
                     output_file.with_suffix(ext).unlink()
         progress.update(process_task, advance=1)
         progress.remove_task(task)
+        progress.remove_task(write_task)
         del gdf
 
     # Stop displaying progress
