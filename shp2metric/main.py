@@ -82,6 +82,10 @@ def run(
         # Raise an error if the input is not valid
         raise typer.BadParameter("Input must be a directory, a shapefile or a zip file")
     
+    if not shapefiles:
+        print(f'[WARNING] directory "{input_path}" does not contain file that match the criteria')
+        exit()
+
     progress.start()
 
     # Add tasks for reading and processing shapefiles
