@@ -3,6 +3,7 @@ from pathlib import Path
 from rich.progress import track
 import zipfile
 import geopandas as gpd
+import shutil
 
 app = typer.Typer()
 
@@ -11,23 +12,28 @@ def run(
     input: str = typer.Argument(..., help="The input directory, shapefile or zip file"),
     output: str = typer.Argument("output", help="The output directory"),
     zip: bool = typer.Option(True, help="Whether to zip the output files or not"),
-    match: str = typer.Option('*.shp', help="Match string to use if the input is a directory. Any file matching the criteria will be globbed."),
+    match: str = typer.Option('**/*.shp', help="Match string to use if the input is a directory or a zip archive. Any file matching the criteria will be globbed"),
 ):
     # Create Path objects for the input and output directories
     input_path = Path(input)
     output_dir = Path(output)
+    
 
     # Check if the input is a directory, a shapefile or a zip file
     if input_path.is_dir():
-        # Find all shapefiles in the input directory
-        shapefiles = input_path.glob("*.shp")
+        # Find all shapefiles in the input directory recursively
+        shapefiles = input_path.glob(match)
     elif input_path.suffix == ".shp":
         # Use the input shapefile as a single-item list
         shapefiles = [input_path]
     elif input_path.suffix == ".zip":
-        # Open the zip file and find all shapefiles inside it
+        # Create a temporary directory
+        tmp_dir = Path(".tmp")
+        # Extract all the contents of the zip file to the temporary directory
         with zipfile.ZipFile(input_path, "r") as zf:
-            shapefiles = [Path(file) for file in zf.namelist() if file.endswith(".shp")]
+            zf.extractall(tmp_dir)
+        # Find all shapefiles in the temporary directory recursively
+        shapefiles = tmp_dir.glob(match)
     else:
         # Raise an error if the input is not valid
         raise typer.BadParameter("Input must be a directory, a shapefile or a zip file")
@@ -62,6 +68,8 @@ def run(
                 for ext in [".shp", ".dbf", ".prj", ".shx"]:
                     output_file.with_suffix(ext).unlink()
 
+    if tmp_dir.exists():
+        shutil.rmtree(tmp_dir)
+
     # Print a success message
     typer.echo(f"Processed {input_path} and saved to {output_dir}")
-

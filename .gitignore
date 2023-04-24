@@ -1,3 +1,4 @@
 shp2metric/__pycache__/
 dist/
 seeding_CORN_WET_2023-01-22.zip
+.tmp/
