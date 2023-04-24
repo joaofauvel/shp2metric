@@ -102,7 +102,7 @@ def run(
                 print(f'[INFO] zipping shapefile')
                 # Write the output file and its associated files to the zip file
                 for ext in [".shp", ".dbf", ".prj", ".shx", ".cpg"]:
-                    zf.write(output_file.with_suffix(ext), arcname=output_file.name())
+                    zf.write(output_file.with_suffix(ext), arcname=output_file.name)
                 print(f'[INFO] removing temporary files')
                 # Delete the original output file and its associated files
                 for ext in [".shp", ".dbf", ".prj", ".shx", ".cpg"]:
